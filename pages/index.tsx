@@ -1,4 +1,5 @@
 import Head from "next/head";
+import confetti from "canvas-confetti";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -31,6 +32,7 @@ export default function SchumiPlanning() {
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingDate, setSavingDate] = useState<string | null>(null);
+  const [celebrationMsg, setCelebrationMsg] = useState<string | null>(null);
 
   const days = useMemo(() => {
     const start = new Date("2026-04-29T12:00:00");
@@ -45,6 +47,37 @@ export default function SchumiPlanning() {
 
     return list;
   }, []);
+
+  function celebrate(person: string) {
+    confetti({
+      particleCount: 110,
+      spread: 80,
+      origin: { y: 0.62 },
+    });
+
+    setTimeout(() => {
+      confetti({
+        particleCount: 55,
+        spread: 60,
+        origin: { x: 0.25, y: 0.75 },
+      });
+      confetti({
+        particleCount: 55,
+        spread: 60,
+        origin: { x: 0.75, y: 0.75 },
+      });
+    }, 180);
+
+    setCelebrationMsg(`🐱 Schumi est content ! Merci ${person} ❤️`);
+
+    window.setTimeout(() => {
+      setCelebrationMsg(null);
+    }, 2600);
+
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(80);
+    }
+  }
 
   async function loadVisits() {
     setLoading(true);
@@ -100,6 +133,9 @@ export default function SchumiPlanning() {
       alert("Erreur lors de l’enregistrement.");
       console.error(error);
     } else {
+      if (status === "booked") {
+        celebrate(selectedPerson);
+      }
       await loadVisits();
     }
 
@@ -121,6 +157,9 @@ export default function SchumiPlanning() {
       alert("Erreur lors de la mise à jour.");
       console.error(error);
     } else {
+      if (!visit.done) {
+        celebrate(visit.visitor_name);
+      }
       await loadVisits();
     }
   }
@@ -258,6 +297,14 @@ export default function SchumiPlanning() {
             🔄 Actualiser le planning
           </button>
         </div>
+
+        {celebrationMsg && (
+          <div className="fixed bottom-6 left-1/2 z-50 w-[calc(100%-32px)] max-w-sm -translate-x-1/2">
+            <div className="rounded-3xl bg-slate-950 px-5 py-4 text-center text-sm font-black text-white shadow-2xl animate-bounce">
+              {celebrationMsg}
+            </div>
+          </div>
+        )}
       </main>
     </>
   );
@@ -299,9 +346,7 @@ function DayCard({
     return (
       <article
         className={`rounded-[26px] border p-4 shadow-sm transition ${
-          optionalBecauseYesterday
-            ? "border-slate-200 bg-slate-50"
-            : "border-orange-100 bg-white"
+          optionalBecauseYesterday ? "border-slate-200 bg-slate-50" : "border-orange-100 bg-white"
         }`}
       >
         <div className="flex items-center gap-3">
@@ -324,9 +369,7 @@ function DayCard({
 
           <span
             className={`rounded-full px-3 py-1 text-xs font-black ${
-              optionalBecauseYesterday
-                ? "bg-slate-200 text-slate-600"
-                : "bg-slate-100 text-slate-500"
+              optionalBecauseYesterday ? "bg-slate-200 text-slate-600" : "bg-slate-100 text-slate-500"
             }`}
           >
             {optionalBecauseYesterday ? "Optionnel" : "Libre"}
