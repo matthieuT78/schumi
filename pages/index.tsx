@@ -53,11 +53,7 @@ export default function SchumiPlanning() {
   }, []);
 
   function celebrate(person: string) {
-    confetti({
-      particleCount: 110,
-      spread: 80,
-      origin: { y: 0.62 },
-    });
+    confetti({ particleCount: 110, spread: 80, origin: { y: 0.62 } });
 
     setTimeout(() => {
       confetti({ particleCount: 55, spread: 60, origin: { x: 0.25, y: 0.75 } });
@@ -66,9 +62,7 @@ export default function SchumiPlanning() {
 
     setCelebrationMsg(`🐱 Schumi est content ! Merci ${person} ❤️`);
 
-    window.setTimeout(() => {
-      setCelebrationMsg(null);
-    }, 2600);
+    window.setTimeout(() => setCelebrationMsg(null), 2600);
 
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       navigator.vibrate(80);
@@ -497,34 +491,30 @@ function DayCard({
 
   return (
     <article
-      className={`rounded-[26px] border p-4 shadow-sm ${
-        visit.done ? "border-emerald-200 bg-emerald-50" : "border-orange-100 bg-white"
+      className={`relative overflow-hidden rounded-[26px] border-2 p-4 shadow-sm ${
+        visit.done ? "border-emerald-400 bg-emerald-100" : "border-emerald-300 bg-emerald-50"
       }`}
     >
+      <div className="absolute right-4 top-4 text-4xl opacity-20">
+        {visit.done ? "✅" : "🐾"}
+      </div>
+
+      <div className="mb-4 inline-flex rounded-full bg-emerald-600 px-3 py-1 text-xs font-black uppercase tracking-wide text-white">
+        {visit.done ? "Passage effectué" : "Journée réservée"}
+      </div>
+
       <div className="flex items-center gap-3">
-        <div
-          className={`flex h-12 w-12 items-center justify-center rounded-2xl text-2xl ${
-            visit.done ? "bg-emerald-100" : "bg-orange-50"
-          }`}
-        >
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-3xl shadow-sm">
           {visit.done ? "✅" : "🐾"}
         </div>
 
         <div className="flex-1">
-          <h2 className="text-base font-black capitalize text-slate-950">{title}</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            {visit.done ? "Fait par " : "Prévu avec "}
-            <span className="font-black text-slate-950">{visit.visitor_name}</span>
+          <h2 className="text-lg font-black capitalize text-slate-950">{title}</h2>
+          <p className="mt-1 text-sm text-emerald-800">
+            {visit.done ? "Fait par " : "Réservé par "}
+            <span className="font-black text-emerald-950">{visit.visitor_name}</span>
           </p>
         </div>
-
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-black ${
-            visit.done ? "bg-emerald-200 text-emerald-800" : "bg-orange-100 text-orange-700"
-          }`}
-        >
-          {visit.done ? "Fait" : "Prévu"}
-        </span>
       </div>
 
       <UnavailableNotes items={unavailableForDay} onRemove={onRemoveUnavailable} />
@@ -559,7 +549,7 @@ function DayCard({
         type="button"
         onClick={() => onUnavailable(date)}
         disabled={saving}
-        className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-600 shadow-sm active:scale-[0.98] disabled:opacity-60"
+        className="mt-2 w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs font-black text-slate-600 shadow-sm active:scale-[0.98] disabled:opacity-60"
       >
         Signaler que je ne suis pas dispo ce jour
       </button>
