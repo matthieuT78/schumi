@@ -3,14 +3,17 @@ import confetti from "canvas-confetti";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-type VisitStatus = "booked" | "unavailable";
-
 type Visit = {
   id: string;
   visit_date: string;
   visitor_name: string;
   done: boolean;
-  unavailable: boolean;
+};
+
+type UnavailableDay = {
+  id: string;
+  visit_date: string;
+  visitor_name: string;
 };
 
 const PEOPLE = ["Thomas", "Caro", "JC/Nadège"] as const;
@@ -30,6 +33,7 @@ function fullDate(date: Date) {
 export default function SchumiPlanning() {
   const [selectedPerson, setSelectedPerson] = useState("");
   const [visits, setVisits] = useState<Visit[]>([]);
+  const [unavailableDays, setUnavailableDays] = useState<UnavailableDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingDate, setSavingDate] = useState<string | null>(null);
   const [celebrationMsg, setCelebrationMsg] = useState<string | null>(null);
@@ -56,16 +60,8 @@ export default function SchumiPlanning() {
     });
 
     setTimeout(() => {
-      confetti({
-        particleCount: 55,
-        spread: 60,
-        origin: { x: 0.25, y: 0.75 },
-      });
-      confetti({
-        particleCount: 55,
-        spread: 60,
-        origin: { x: 0.75, y: 0.75 },
-      });
+      confetti({ particleCount: 55, spread: 60, origin: { x: 0.25, y: 0.75 } });
+      confetti({ particleCount: 55, spread: 60, origin: { x: 0.75, y: 0.75 } });
     }, 180);
 
     setCelebrationMsg(`🐱 Schumi est content ! Merci ${person} ❤️`);
@@ -82,18 +78,31 @@ export default function SchumiPlanning() {
   async function loadVisits() {
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from("cat_daily_visits")
-      .select("*")
-      .gte("visit_date", formatDate(days[0]))
-      .lte("visit_date", formatDate(days[days.length - 1]))
-      .order("visit_date", { ascending: true });
+    const from = formatDate(days[0]);
+    const to = formatDate(days[days.length - 1]);
 
-    if (error) {
+    const [visitsResult, unavailableResult] = await Promise.all([
+      supabase
+        .from("cat_daily_visits")
+        .select("*")
+        .gte("visit_date", from)
+        .lte("visit_date", to)
+        .order("visit_date", { ascending: true }),
+
+      supabase
+        .from("cat_unavailable_days")
+        .select("*")
+        .gte("visit_date", from)
+        .lte("visit_date", to)
+        .order("visit_date", { ascending: true }),
+    ]);
+
+    if (visitsResult.error || unavailableResult.error) {
       alert("Impossible de charger le planning.");
-      console.error(error);
+      console.error(visitsResult.error || unavailableResult.error);
     } else {
-      setVisits((data || []) as Visit[]);
+      setVisits((visitsResult.data || []) as Visit[]);
+      setUnavailableDays((unavailableResult.data || []) as UnavailableDay[]);
     }
 
     setLoading(false);
@@ -107,7 +116,7 @@ export default function SchumiPlanning() {
     return visits.find((v) => v.visit_date === date);
   }
 
-  async function saveDay(date: string, status: VisitStatus) {
+  async function bookDay(date: string) {
     if (!selectedPerson) {
       alert("Choisis d’abord ton nom en haut de la page 🙂");
       return;
@@ -122,7 +131,6 @@ export default function SchumiPlanning() {
           visit_date: date,
           visitor_name: selectedPerson,
           done: false,
-          unavailable: status === "unavailable",
           updated_at: new Date().toISOString(),
         },
         { onConflict: "visit_date" }
@@ -133,18 +141,55 @@ export default function SchumiPlanning() {
       alert("Erreur lors de l’enregistrement.");
       console.error(error);
     } else {
-      if (status === "booked") {
-        celebrate(selectedPerson);
-      }
+      celebrate(selectedPerson);
       await loadVisits();
     }
 
     setSavingDate(null);
   }
 
-  async function toggleDone(visit: Visit) {
-    if (visit.unavailable) return;
+  async function markUnavailable(date: string) {
+    if (!selectedPerson) {
+      alert("Choisis d’abord ton nom en haut de la page 🙂");
+      return;
+    }
 
+    setSavingDate(date);
+
+    const { error } = await supabase
+      .from("cat_unavailable_days")
+      .upsert(
+        {
+          visit_date: date,
+          visitor_name: selectedPerson,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "visit_date,visitor_name" }
+      )
+      .select();
+
+    if (error) {
+      alert("Erreur lors de l’enregistrement.");
+      console.error(error);
+    } else {
+      await loadVisits();
+    }
+
+    setSavingDate(null);
+  }
+
+  async function removeUnavailable(unavailable: UnavailableDay) {
+    const { error } = await supabase.from("cat_unavailable_days").delete().eq("id", unavailable.id);
+
+    if (error) {
+      alert("Erreur lors de la suppression.");
+      console.error(error);
+    } else {
+      await loadVisits();
+    }
+  }
+
+  async function toggleDone(visit: Visit) {
     const { error } = await supabase
       .from("cat_daily_visits")
       .update({
@@ -157,9 +202,7 @@ export default function SchumiPlanning() {
       alert("Erreur lors de la mise à jour.");
       console.error(error);
     } else {
-      if (!visit.done) {
-        celebrate(visit.visitor_name);
-      }
+      if (!visit.done) celebrate(visit.visitor_name);
       await loadVisits();
     }
   }
@@ -178,9 +221,9 @@ export default function SchumiPlanning() {
     }
   }
 
-  const bookedDays = visits.filter((v) => !v.unavailable).length;
-  const doneDays = visits.filter((v) => v.done && !v.unavailable).length;
-  const unavailableDays = visits.filter((v) => v.unavailable).length;
+  const bookedDays = visits.length;
+  const doneDays = visits.filter((v) => v.done).length;
+  const unavailableCount = unavailableDays.length;
 
   return (
     <>
@@ -203,7 +246,7 @@ export default function SchumiPlanning() {
                   Nourrir Schumi
                 </h1>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                  Choisis ton nom, puis indique si tu peux passer ou si tu n’es pas là.
+                  Choisis ton nom, prends une journée, ou indique simplement si tu n’es pas disponible.
                 </p>
               </div>
             </div>
@@ -218,7 +261,7 @@ export default function SchumiPlanning() {
             <div className="mt-4 grid grid-cols-3 gap-2">
               <Stat label="Pris" value={`${bookedDays}`} />
               <Stat label="Faits" value={`${doneDays}`} />
-              <Stat label="Absents" value={`${unavailableDays}`} />
+              <Stat label="Indispos" value={`${unavailableCount}`} />
             </div>
           </section>
 
@@ -249,8 +292,7 @@ export default function SchumiPlanning() {
           <section className="rounded-[24px] border border-orange-100 bg-white p-4 shadow-sm">
             <p className="text-sm font-black text-slate-950">2. Organise le planning</p>
             <p className="mt-1 text-xs text-slate-500">
-              Tu peux prendre une journée, ou prévenir que tu n’es pas disponible. Si quelqu’un est passé la veille,
-              la journée suivante est optionnelle.
+              “Je ne suis pas là” ajoute seulement une note visible par les autres. Cela ne bloque pas la journée.
             </p>
           </section>
 
@@ -263,12 +305,13 @@ export default function SchumiPlanning() {
               {days.map((day) => {
                 const date = formatDate(day);
                 const visit = findVisit(date);
+                const unavailableForDay = unavailableDays.filter((u) => u.visit_date === date);
 
                 const previousDay = new Date(day);
                 previousDay.setDate(previousDay.getDate() - 1);
                 const previousVisit = findVisit(formatDate(previousDay));
 
-                const optionalBecauseYesterday = !visit && !!previousVisit && !previousVisit.unavailable;
+                const optionalBecauseYesterday = !visit && !!previousVisit;
 
                 return (
                   <DayCard
@@ -276,11 +319,13 @@ export default function SchumiPlanning() {
                     date={date}
                     title={fullDate(day)}
                     visit={visit}
+                    unavailableForDay={unavailableForDay}
                     saving={savingDate === date}
                     optionalBecauseYesterday={optionalBecauseYesterday}
                     previousVisitor={previousVisit?.visitor_name}
-                    onBook={(d) => saveDay(d, "booked")}
-                    onUnavailable={(d) => saveDay(d, "unavailable")}
+                    onBook={bookDay}
+                    onUnavailable={markUnavailable}
+                    onRemoveUnavailable={removeUnavailable}
                     onDone={toggleDone}
                     onClear={clearDay}
                   />
@@ -300,7 +345,7 @@ export default function SchumiPlanning() {
 
         {celebrationMsg && (
           <div className="fixed bottom-6 left-1/2 z-50 w-[calc(100%-32px)] max-w-sm -translate-x-1/2">
-            <div className="rounded-3xl bg-slate-950 px-5 py-4 text-center text-sm font-black text-white shadow-2xl animate-bounce">
+            <div className="animate-bounce rounded-3xl bg-slate-950 px-5 py-4 text-center text-sm font-black text-white shadow-2xl">
               {celebrationMsg}
             </div>
           </div>
@@ -319,26 +364,64 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function UnavailableNotes({
+  items,
+  onRemove,
+}: {
+  items: UnavailableDay[];
+  onRemove: (item: UnavailableDay) => void;
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-3">
+      <p className="text-sm font-black text-red-700">Indisponibilités signalées</p>
+
+      <div className="mt-2 space-y-2">
+        {items.map((item) => (
+          <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2">
+            <p className="text-sm text-red-700">
+              <span className="font-black">{item.visitor_name}</span> n’est pas dispo à ce créneau.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => onRemove(item)}
+              className="shrink-0 rounded-full bg-red-50 px-2 py-1 text-xs font-black text-red-600"
+            >
+              Retirer
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DayCard({
   date,
   title,
   visit,
+  unavailableForDay,
   saving,
   optionalBecauseYesterday,
   previousVisitor,
   onBook,
   onUnavailable,
+  onRemoveUnavailable,
   onDone,
   onClear,
 }: {
   date: string;
   title: string;
   visit?: Visit;
+  unavailableForDay: UnavailableDay[];
   saving: boolean;
   optionalBecauseYesterday?: boolean;
   previousVisitor?: string;
   onBook: (date: string) => void;
   onUnavailable: (date: string) => void;
+  onRemoveUnavailable: (item: UnavailableDay) => void;
   onDone: (visit: Visit) => void;
   onClear: (visit: Visit) => void;
 }) {
@@ -385,6 +468,8 @@ function DayCard({
           </div>
         )}
 
+        <UnavailableNotes items={unavailableForDay} onRemove={onRemoveUnavailable} />
+
         <div className="mt-4 grid gap-2">
           <button
             type="button"
@@ -404,47 +489,6 @@ function DayCard({
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-600 shadow-sm transition active:scale-[0.98] disabled:opacity-60"
           >
             Je ne suis pas là cette journée
-          </button>
-        </div>
-      </article>
-    );
-  }
-
-  if (visit.unavailable) {
-    return (
-      <article className="rounded-[26px] border border-red-100 bg-red-50 p-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-2xl">
-            🚫
-          </div>
-
-          <div className="flex-1">
-            <h2 className="text-base font-black capitalize text-slate-950">{title}</h2>
-            <p className="mt-1 text-sm text-red-700">
-              <span className="font-black">{visit.visitor_name}</span> n’est pas disponible ce jour-là.
-            </p>
-          </div>
-
-          <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-black text-red-700">
-            Absent
-          </span>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => onBook(date)}
-            className="rounded-2xl bg-white px-3 py-3 text-xs font-black text-slate-800 shadow-sm active:scale-[0.98]"
-          >
-            Je peux finalement
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onClear(visit)}
-            className="rounded-2xl bg-white px-3 py-3 text-xs font-black text-red-500 shadow-sm active:scale-[0.98]"
-          >
-            Effacer
           </button>
         </div>
       </article>
@@ -483,6 +527,8 @@ function DayCard({
         </span>
       </div>
 
+      <UnavailableNotes items={unavailableForDay} onRemove={onRemoveUnavailable} />
+
       <div className="mt-4 grid grid-cols-3 gap-2">
         <button
           type="button"
@@ -508,6 +554,15 @@ function DayCard({
           Libérer
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={() => onUnavailable(date)}
+        disabled={saving}
+        className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-600 shadow-sm active:scale-[0.98] disabled:opacity-60"
+      >
+        Signaler que je ne suis pas dispo ce jour
+      </button>
     </article>
   );
 }
