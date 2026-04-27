@@ -203,7 +203,8 @@ export default function SchumiPlanning() {
           <section className="rounded-[24px] border border-orange-100 bg-white p-4 shadow-sm">
             <p className="text-sm font-black text-slate-950">2. Choisis une journée</p>
             <p className="mt-1 text-xs text-slate-500">
-              Une personne s’occupe de Schumi pour toute la journée.
+              Une personne s’occupe de Schumi pour toute la journée. Si quelqu’un est passé la veille,
+              la journée suivante devient optionnelle.
             </p>
           </section>
 
@@ -217,6 +218,12 @@ export default function SchumiPlanning() {
                 const date = formatDate(day);
                 const visit = findVisit(date);
 
+                const previousDay = new Date(day);
+                previousDay.setDate(previousDay.getDate() - 1);
+                const previousVisit = findVisit(formatDate(previousDay));
+
+                const optionalBecauseYesterday = !visit && !!previousVisit;
+
                 return (
                   <DayCard
                     key={date}
@@ -224,6 +231,8 @@ export default function SchumiPlanning() {
                     title={fullDate(day)}
                     visit={visit}
                     saving={savingDate === date}
+                    optionalBecauseYesterday={optionalBecauseYesterday}
+                    previousVisitor={previousVisit?.visitor_name}
                     onClaim={claimDay}
                     onDone={toggleDone}
                     onClear={clearDay}
@@ -260,6 +269,8 @@ function DayCard({
   title,
   visit,
   saving,
+  optionalBecauseYesterday,
+  previousVisitor,
   onClaim,
   onDone,
   onClear,
@@ -268,35 +279,77 @@ function DayCard({
   title: string;
   visit?: Visit;
   saving: boolean;
+  optionalBecauseYesterday?: boolean;
+  previousVisitor?: string;
   onClaim: (date: string) => void;
   onDone: (visit: Visit) => void;
   onClear: (visit: Visit) => void;
 }) {
   if (!visit) {
     return (
-      <article className="rounded-[26px] border border-orange-100 bg-white p-4 shadow-sm">
+      <article
+        className={`rounded-[26px] border p-4 shadow-sm transition ${
+          optionalBecauseYesterday
+            ? "border-slate-200 bg-slate-50 opacity-80"
+            : "border-orange-100 bg-white"
+        }`}
+      >
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-2xl">
-            📝
+          <div
+            className={`flex h-12 w-12 items-center justify-center rounded-2xl text-2xl ${
+              optionalBecauseYesterday ? "bg-slate-100" : "bg-orange-50"
+            }`}
+          >
+            {optionalBecauseYesterday ? "😴" : "📝"}
           </div>
 
           <div className="flex-1">
             <h2 className="text-base font-black capitalize text-slate-950">{title}</h2>
-            <p className="mt-1 text-sm text-slate-500">Personne pour l’instant</p>
+
+            {optionalBecauseYesterday ? (
+              <p className="mt-1 text-sm text-slate-500">
+                {previousVisitor
+                  ? `${previousVisitor} est déjà passé(e) hier.`
+                  : "Quelqu’un est déjà passé hier."}
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-slate-500">Personne pour l’instant</p>
+            )}
           </div>
 
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
-            Libre
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-black ${
+              optionalBecauseYesterday
+                ? "bg-slate-200 text-slate-600"
+                : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            {optionalBecauseYesterday ? "Optionnel" : "Libre"}
           </span>
         </div>
+
+        {optionalBecauseYesterday && (
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+            <p className="text-sm leading-relaxed text-slate-600">
+              Quelqu’un est déjà passé hier, donc ce n’est pas obligatoire de venir aujourd’hui.
+              Ça peut attendre demain. Tu peux quand même prendre la journée si tu préfères passer.
+            </p>
+          </div>
+        )}
 
         <button
           type="button"
           onClick={() => onClaim(date)}
           disabled={saving}
-          className="mt-4 w-full rounded-2xl bg-orange-500 px-4 py-3 text-sm font-black text-white shadow-sm transition active:scale-[0.98] disabled:opacity-60"
+          className={`mt-4 w-full rounded-2xl px-4 py-3 text-sm font-black shadow-sm transition active:scale-[0.98] disabled:opacity-60 ${
+            optionalBecauseYesterday ? "bg-slate-700 text-white" : "bg-orange-500 text-white"
+          }`}
         >
-          {saving ? "Enregistrement…" : "Je prends cette journée"}
+          {saving
+            ? "Enregistrement…"
+            : optionalBecauseYesterday
+            ? "Je passe quand même"
+            : "Je prends cette journée"}
         </button>
       </article>
     );
