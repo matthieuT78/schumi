@@ -16,7 +16,7 @@ type UnavailableDay = {
   visitor_name: string;
 };
 
-const PEOPLE = ["Thomas", "Caro", "JC/Nadège"] as const;
+const PEOPLE = ["Thomas", "Caro", "Papa/Nadège"] as const;
 
 function formatDate(date: Date) {
   return date.toISOString().slice(0, 10);
