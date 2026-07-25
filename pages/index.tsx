@@ -35,6 +35,7 @@ export default function SchumiPlanning() {
   const [visits, setVisits] = useState<Visit[]>([]);
   const [unavailableDays, setUnavailableDays] = useState<UnavailableDay[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [savingDate, setSavingDate] = useState<string | null>(null);
   const [celebrationMsg, setCelebrationMsg] = useState<string | null>(null);
 
@@ -71,35 +72,41 @@ export default function SchumiPlanning() {
 
   async function loadVisits() {
     setLoading(true);
+    setLoadError(null);
 
-    const from = formatDate(days[0]);
-    const to = formatDate(days[days.length - 1]);
+    try {
+      const from = formatDate(days[0]);
+      const to = formatDate(days[days.length - 1]);
 
-    const [visitsResult, unavailableResult] = await Promise.all([
-      supabase
-        .from("cat_daily_visits")
-        .select("*")
-        .gte("visit_date", from)
-        .lte("visit_date", to)
-        .order("visit_date", { ascending: true }),
+      const [visitsResult, unavailableResult] = await Promise.all([
+        supabase
+          .from("cat_daily_visits")
+          .select("*")
+          .gte("visit_date", from)
+          .lte("visit_date", to)
+          .order("visit_date", { ascending: true }),
 
-      supabase
-        .from("cat_unavailable_days")
-        .select("*")
-        .gte("visit_date", from)
-        .lte("visit_date", to)
-        .order("visit_date", { ascending: true }),
-    ]);
+        supabase
+          .from("cat_unavailable_days")
+          .select("*")
+          .gte("visit_date", from)
+          .lte("visit_date", to)
+          .order("visit_date", { ascending: true }),
+      ]);
 
-    if (visitsResult.error || unavailableResult.error) {
-      alert("Impossible de charger le planning.");
-      console.error(visitsResult.error || unavailableResult.error);
-    } else {
-      setVisits((visitsResult.data || []) as Visit[]);
-      setUnavailableDays((unavailableResult.data || []) as UnavailableDay[]);
+      if (visitsResult.error || unavailableResult.error) {
+        console.error(visitsResult.error || unavailableResult.error);
+        setLoadError("Impossible de charger le planning.");
+      } else {
+        setVisits((visitsResult.data || []) as Visit[]);
+        setUnavailableDays((unavailableResult.data || []) as UnavailableDay[]);
+      }
+    } catch (err) {
+      console.error(err);
+      setLoadError("Connexion impossible. Vérifie ta connexion et réessaie.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -293,6 +300,17 @@ export default function SchumiPlanning() {
           {loading ? (
             <div className="rounded-[24px] bg-white p-5 text-sm text-slate-500 shadow-sm">
               Chargement du planning…
+            </div>
+          ) : loadError ? (
+            <div className="rounded-[24px] border border-red-100 bg-red-50 p-5 text-sm text-red-700 shadow-sm">
+              <p className="font-black">{loadError}</p>
+              <button
+                type="button"
+                onClick={loadVisits}
+                className="mt-3 rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white shadow-sm active:scale-[0.98]"
+              >
+                Réessayer
+              </button>
             </div>
           ) : (
             <section className="space-y-3">
