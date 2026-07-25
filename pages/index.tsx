@@ -39,8 +39,8 @@ export default function SchumiPlanning() {
   const [celebrationMsg, setCelebrationMsg] = useState<string | null>(null);
 
   const days = useMemo(() => {
-    const start = new Date("2026-04-29T12:00:00");
-    const end = new Date("2026-05-07T12:00:00");
+    const start = new Date("2026-07-28T12:00:00");
+    const end = new Date("2026-08-10T12:00:00");
     const list: Date[] = [];
     const current = new Date(start);
 
@@ -248,7 +248,7 @@ export default function SchumiPlanning() {
             <div className="mt-5 rounded-2xl bg-orange-50 p-4">
               <p className="text-sm font-bold text-slate-900">Période à couvrir</p>
               <p className="mt-1 text-sm text-slate-600">
-                Du <strong>mercredi 29 avril</strong> au <strong>jeudi 7 mai</strong>.
+                Du <strong>mardi 28 juillet</strong> au <strong>lundi 10 août</strong>.
               </p>
             </div>
 
