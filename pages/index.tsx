@@ -231,7 +231,7 @@ export default function SchumiPlanning() {
       <Head>
         <title>Planning Schumi 🐱</title>
         <meta name="description" content="Planning pour nourrir Schumi pendant les vacances." />
-        <meta name="linkmania" content="c66a4f470f220c3" />
+        <meta name="linkmania" content="c69bddac562f394" />
       </Head>
 
       <main className="min-h-screen bg-[#FFF8EE] px-4 py-5 text-slate-900">
